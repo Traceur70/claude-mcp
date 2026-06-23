@@ -32,6 +32,11 @@ src/OneDriveMcp/
 ├─ Files/SpreadsheetReader.cs # Parsing Excel (ClosedXML) + CSV (CsvHelper)
 └─ Mcp/OneDriveTools.cs       # Outils MCP : list_files, search_files, read_spreadsheet
 .github/workflows/deploy.yml  # Déploiement optionnel via GitHub Actions
+infra/                        # Infrastructure as Code (Bicep)
+├─ main.bicep                 # Déploiement subscription-scope : crée le RG + les ressources
+├─ resources.bicep            # App Service Plan B1 (Linux) + Web App .NET 8
+├─ main.bicepparam            # Paramètres (région, noms…)
+└─ deploy.sh                  # validate + what-if + deploy en une commande
 ```
 
 ---
@@ -54,10 +59,24 @@ src/OneDriveMcp/
 > **Tenant ID** : pour un OneDrive **perso**, laissez la valeur par défaut **`consumers`** (rien à copier).
 > Pour un OneDrive **Entreprise**, mettez votre Tenant ID (GUID).
 
-### Étape 2 — Créer la Web App Azure
+### Étape 2 — Créer l'environnement Azure (Bicep)
 
-- Créez une **App Service** / **Web App**, pile **.NET 8 (LTS)**, OS **Linux** recommandé.
-- Le nom de la Web App doit correspondre à l'URL de redirection de l'étape 1.3.
+L'infrastructure est décrite dans `infra/` (Infrastructure as Code). Elle crée, en une commande :
+le **groupe de ressources `claude-mcp`**, un **App Service Plan B1 Linux** et la **Web App .NET 8**
+(HTTPS only, TLS 1.2, FTPS désactivé), avec les **App Settings déjà créés (vides)** prêts à remplir.
+
+```bash
+az login
+az account set --subscription "<VOTRE-SOUSCRIPTION>"
+./infra/deploy.sh            # validate + what-if + déploiement
+```
+
+Valeurs par défaut (modifiables dans `infra/main.bicepparam`) :
+`location=westeurope`, `resourceGroupName=claude-mcp`, `webAppName=claude-mcp-nadda`, `appServicePlanName=claude-mcp-plan`.
+
+> ⚠️ `webAppName` doit être **unique sur tout Azure**. À la fin, le déploiement affiche les sorties
+> `webAppUrl` et **`redirectUri`** : c'est exactement l'URL à enregistrer à l'étape 1.3
+> (`https://claude-mcp-nadda.azurewebsites.net/signin-oidc`).
 
 ### Étape 3 — Déployer le code
 
@@ -74,7 +93,8 @@ Au choix :
 
 ### Étape 4 — Saisir VOS 3 valeurs (la seule chose à écrire 🎯)
 
-Portail Azure → votre Web App → **Settings → Environment variables / Application settings** → ajoutez :
+Le Bicep a déjà créé ces App Settings (vides). Portail Azure → votre Web App →
+**Settings → Environment variables / Application settings** → **éditez les valeurs** :
 
 | Nom de l'App Setting | Valeur                          |
 |----------------------|---------------------------------|
