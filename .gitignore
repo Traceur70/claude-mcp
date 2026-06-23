@@ -1,0 +1,23 @@
+# .NET build output
+bin/
+obj/
+*.user
+*.suo
+
+# Local secrets / dev config (ne jamais committer de secrets)
+appsettings.Development.json
+appsettings.Local.json
+secrets.json
+
+# Caches de jetons / data locale
+data/
+*.bin
+
+# IDE
+.vs/
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

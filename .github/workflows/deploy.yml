@@ -1,0 +1,42 @@
+name: Deploy to Azure Web App
+
+# Deploiement optionnel via GitHub Actions.
+# Pre-requis :
+#   1. Dans le portail Azure > votre Web App > "Get publish profile" (telechargez le .PublishProfile).
+#   2. Dans GitHub > Settings > Secrets and variables > Actions :
+#        - secret  AZURE_WEBAPP_PUBLISH_PROFILE = contenu du fichier de publication.
+#   3. Renseignez AZURE_WEBAPP_NAME ci-dessous (nom exact de votre Web App).
+#
+# Vous pouvez aussi deployer sans CI (voir README : "az webapp up" ou Visual Studio).
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+env:
+  AZURE_WEBAPP_NAME: CHANGEZ-MOI-nom-de-la-webapp
+  DOTNET_VERSION: '8.0.x'
+  PROJECT_PATH: src/OneDriveMcp/OneDriveMcp.csproj
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore & publish
+        run: dotnet publish ${{ env.PROJECT_PATH }} -c Release -o ./publish
+
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: ./publish

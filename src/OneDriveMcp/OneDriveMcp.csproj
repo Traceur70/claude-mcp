@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>OneDriveMcp</RootNamespace>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Serveur MCP (transport HTTP / Streamable) - paquet en preview, on flotte sur la derniere 0.x -->
+    <PackageReference Include="ModelContextProtocol.AspNetCore" Version="0.*-*" />
+
+    <!-- Authentification Microsoft Entra / Microsoft Account (MSAL) -->
+    <PackageReference Include="Microsoft.Identity.Client" Version="4.*" />
+
+    <!-- Lecture des fichiers Excel et CSV -->
+    <PackageReference Include="ClosedXML" Version="0.104.*" />
+    <PackageReference Include="CsvHelper" Version="33.*" />
+  </ItemGroup>
+
+</Project>
