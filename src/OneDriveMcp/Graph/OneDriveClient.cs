@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Headers;
 using System.Text.Json;
 using OneDriveMcp.Auth;
@@ -48,7 +49,7 @@ public sealed class OneDriveClient
 
         string url = string.IsNullOrWhiteSpace(folderPath)
             ? $"{GraphBase}/me/drive/root/children"
-            : $"{GraphBase}/me/drive/root:/{Uri.EscapeDataString(folderPath.Trim('/'))}:/children";
+            : $"{GraphBase}/me/drive/root:/{EncodePath(folderPath)}:/children";
 
         url += $"?$top={top}&$select=id,name,size,folder,file,webUrl,parentReference";
 
@@ -65,39 +66,73 @@ public sealed class OneDriveClient
         return await ReadItemsAsync(client, url, onlySpreadsheets);
     }
 
-    /// <summary>Recupere le nom + l'URL de telechargement pre-authentifiee d'un fichier (par id ou chemin).</summary>
-    public async Task<(string Name, string DownloadUrl)> GetDownloadInfoAsync(string idOrPath)
+    /// <summary>
+    /// Telecharge le contenu d'un fichier (par id ou chemin) et renvoie (nom, octets).
+    ///
+    /// On NE depend PAS de l'annotation @microsoft.graph.downloadUrl : elle n'est pas
+    /// renvoyee de facon fiable (et la $select-er la fait disparaitre). On resout d'abord
+    /// l'item (id + nom), puis on lit directement l'endpoint /content de Graph, qui renvoie
+    /// le flux d'octets via une redirection 302 vers une URL pre-authentifiee.
+    /// </summary>
+    public async Task<(string Name, byte[] Content)> DownloadFileAsync(string idOrPath)
     {
         using var client = await CreateGraphClientAsync();
 
         bool looksLikePath = idOrPath.Contains('/') || idOrPath.Contains('.');
-        string url = looksLikePath
-            ? $"{GraphBase}/me/drive/root:/{Uri.EscapeDataString(idOrPath.Trim('/'))}"
+        string itemUrl = looksLikePath
+            ? $"{GraphBase}/me/drive/root:/{EncodePath(idOrPath)}"
             : $"{GraphBase}/me/drive/items/{Uri.EscapeDataString(idOrPath)}";
 
-        url += "?$select=id,name,@microsoft.graph.downloadUrl";
-
-        using var resp = await client.GetAsync(url);
+        using var resp = await client.GetAsync($"{itemUrl}?$select=id,name,file,folder");
         await EnsureSuccessAsync(resp);
 
         using var doc = JsonDocument.Parse(await resp.Content.ReadAsStreamAsync());
         var root = doc.RootElement;
+        var id = root.GetProperty("id").GetString()!;
         var name = root.GetProperty("name").GetString() ?? idOrPath;
 
-        if (!root.TryGetProperty("@microsoft.graph.downloadUrl", out var dl) || dl.GetString() is not string downloadUrl)
-            throw new InvalidOperationException($"Aucune URL de telechargement pour '{name}' (est-ce bien un fichier ?).");
+        if (root.TryGetProperty("folder", out _))
+            throw new InvalidOperationException($"'{name}' est un dossier, pas un fichier.");
 
-        return (name, downloadUrl);
+        var bytes = await DownloadContentAsync(id);
+        return (name, bytes);
     }
 
-    /// <summary>Telecharge le contenu brut depuis une URL de telechargement pre-authentifiee (sans bearer).</summary>
-    public async Task<byte[]> DownloadAsync(string downloadUrl)
+    /// <summary>
+    /// Lit l'endpoint /content d'un item. Graph repond par un 302 vers une URL pre-signee :
+    /// on suit la redirection manuellement et on telecharge SANS en-tete d'autorisation
+    /// (sinon le stockage la rejette). Certains petits fichiers peuvent revenir en 200 direct.
+    /// </summary>
+    private async Task<byte[]> DownloadContentAsync(string itemId)
     {
-        var client = _httpFactory.CreateClient(); // pas d'Authorization : l'URL est deja signee
-        using var resp = await client.GetAsync(downloadUrl);
+        var token = await _tokenStore.GetAccessTokenAsync() ?? throw new NotConnectedException();
+
+        // Client sans suivi automatique de redirection pour intercepter le 302.
+        var noRedirect = _httpFactory.CreateClient("graph-content");
+        using var req = new HttpRequestMessage(HttpMethod.Get, $"{GraphBase}/me/drive/items/{Uri.EscapeDataString(itemId)}/content");
+        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        using var resp = await noRedirect.SendAsync(req, HttpCompletionOption.ResponseHeadersRead);
+
+        if (resp.StatusCode is HttpStatusCode.Found or HttpStatusCode.Redirect
+            or HttpStatusCode.MovedPermanently or HttpStatusCode.TemporaryRedirect or HttpStatusCode.SeeOther)
+        {
+            var location = resp.Headers.Location
+                ?? throw new InvalidOperationException("Redirection 302 sans en-tete Location pour le contenu du fichier.");
+
+            var plain = _httpFactory.CreateClient(); // pas d'Authorization : l'URL est deja signee
+            using var dl = await plain.GetAsync(location);
+            await EnsureSuccessAsync(dl);
+            return await dl.Content.ReadAsByteArrayAsync();
+        }
+
         await EnsureSuccessAsync(resp);
         return await resp.Content.ReadAsByteArrayAsync();
     }
+
+    /// <summary>Encode chaque segment d'un chemin OneDrive en conservant les '/' separateurs.</summary>
+    private static string EncodePath(string path) =>
+        string.Join('/', path.Trim('/').Split('/').Select(Uri.EscapeDataString));
 
     private static async Task<IReadOnlyList<DriveItemInfo>> ReadItemsAsync(HttpClient client, string url, bool onlySpreadsheets)
     {
