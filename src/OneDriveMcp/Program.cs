@@ -18,6 +18,11 @@ builder.Services.AddDataProtection()
 
 builder.Services.AddHttpClient();
 
+// Client dedie au telechargement de contenu Graph : on n'auto-suit PAS le 302 afin de
+// pouvoir telecharger l'URL pre-signee sans renvoyer l'en-tete d'autorisation.
+builder.Services.AddHttpClient("graph-content")
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
+
 // --- Services applicatifs ---
 builder.Services.AddSingleton<TokenStore>();
 builder.Services.AddScoped<OneDriveClient>();

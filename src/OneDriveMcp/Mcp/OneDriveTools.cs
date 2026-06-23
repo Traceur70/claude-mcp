@@ -77,8 +77,7 @@ public sealed class OneDriveTools
     {
         try
         {
-            var (name, downloadUrl) = await _oneDrive.GetDownloadInfoAsync(file);
-            var bytes = await _oneDrive.DownloadAsync(downloadUrl);
+            var (name, bytes) = await _oneDrive.DownloadFileAsync(file);
             var limit = Math.Clamp(maxRows ?? _options.DefaultMaxRows, 1, 50_000);
 
             var data = _reader.Read(name, bytes, sheet, limit);
