@@ -20,7 +20,7 @@ VM Linux **Ubuntu 24.04** auto-configurée pour du remote dev avec Claude :
 az login
 az account set --subscription <ID>
 ssh-keygen -t ed25519          # si pas déjà fait
-./infra/devbox/deploy.sh        # utilise ~/.ssh/id_ed25519.pub
+./devbox/deploy.sh              # utilise ~/.ssh/id_ed25519.pub
 ```
 
 ## Après le déploiement

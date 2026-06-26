@@ -7,8 +7,8 @@
 //   az deployment sub create \
 //     --name claude-devbox-infra \
 //     --location westeurope \
-//     --template-file infra/devbox/main.bicep \
-//     --parameters infra/devbox/main.bicepparam \
+//     --template-file devbox/main.bicep \
+//     --parameters devbox/main.bicepparam \
 //     --parameters adminPublicKey="$(cat ~/.ssh/id_ed25519.pub)"
 
 targetScope = 'subscription'
