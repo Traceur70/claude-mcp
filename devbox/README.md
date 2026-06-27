@@ -12,6 +12,7 @@ VM Linux **Ubuntu 24.04** auto-configurée pour du remote dev avec Claude :
 | `main.bicep` | Scope souscription : crée le RG `claude-devbox` puis appelle `vm.bicep`. |
 | `vm.bicep` | Réseau (VNet/Subnet/NSG/IP publique/NIC) + VM + cloud-init. |
 | `main.bicepparam` | Valeurs par défaut (région, taille, user, etc.). |
+| `main.json` | Template **ARM compilé** depuis `main.bicep`. Pour un déploiement via le **portail Azure** (Deploy a custom template). Régénérer avec `bicep build main.bicep --outfile main.json` après toute modif du Bicep. |
 | `deploy.sh` | validate → what-if → create via Azure CLI. Injecte la clé SSH. |
 
 ## Déploiement
@@ -22,6 +23,13 @@ az account set --subscription <ID>
 ssh-keygen -t ed25519          # si pas déjà fait
 ./devbox/deploy.sh              # utilise ~/.ssh/id_ed25519.pub
 ```
+
+### Variante : déploiement via le portail Azure (sans CLI)
+
+1. Portail → **« Deploy a custom template »** → **« Build your own template in the editor »**.
+2. Colle le contenu de `main.json` → **Save**.
+3. Renseigne le formulaire : **Region**, **Admin Public Key** (ta clé SSH publique), **Allowed Ssh Source** (`x.x.x.x/32`).
+4. **Review + create**.
 
 ## Après le déploiement
 
