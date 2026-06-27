@@ -1,0 +1,419 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.44.1.10279",
+      "templateHash": "3395717560222860762"
+    }
+  },
+  "parameters": {
+    "location": {
+      "type": "string",
+      "defaultValue": "westeurope",
+      "metadata": {
+        "description": "Region Azure des ressources."
+      }
+    },
+    "resourceGroupName": {
+      "type": "string",
+      "defaultValue": "claude-devbox",
+      "metadata": {
+        "description": "Nom du groupe de ressources a creer."
+      }
+    },
+    "vmName": {
+      "type": "string",
+      "defaultValue": "claude-devbox",
+      "metadata": {
+        "description": "Nom de la VM (sert aussi de prefixe aux ressources reseau)."
+      }
+    },
+    "vmSize": {
+      "type": "string",
+      "defaultValue": "Standard_D4s_v5",
+      "metadata": {
+        "description": "Taille de la VM. Levier de scalabilite verticale : on redimensionne sans recreer. Ex : Standard_D2s_v5, Standard_D4s_v5, Standard_D8s_v5."
+      }
+    },
+    "adminUsername": {
+      "type": "string",
+      "defaultValue": "azureuser",
+      "metadata": {
+        "description": "Nom de l utilisateur admin Linux."
+      }
+    },
+    "adminPublicKey": {
+      "type": "securestring",
+      "metadata": {
+        "description": "Cle publique SSH (contenu de ~/.ssh/id_ed25519.pub). OBLIGATOIRE."
+      }
+    },
+    "allowedSshSource": {
+      "type": "string",
+      "defaultValue": "*",
+      "metadata": {
+        "description": "Plage source autorisee pour SSH (CIDR). Mets ton IP /32 plutot que * en prod. Ex : 203.0.113.4/32."
+      }
+    },
+    "osDiskSizeGB": {
+      "type": "int",
+      "defaultValue": 128,
+      "metadata": {
+        "description": "Taille du disque OS en Go (images Docker, build .NET/Angular)."
+      }
+    },
+    "dnsLabelPrefix": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Prefixe DNS public optionnel (doit etre unique dans la region). Vide = pas de FQDN."
+      }
+    },
+    "tags": {
+      "type": "object",
+      "defaultValue": {
+        "project": "claude-mcp",
+        "workload": "remote-devbox"
+      },
+      "metadata": {
+        "description": "Tags appliques a toutes les ressources."
+      }
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Resources/resourceGroups",
+      "apiVersion": "2024-03-01",
+      "name": "[parameters('resourceGroupName')]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]"
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "devbox-resources",
+      "resourceGroup": "[parameters('resourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "vmName": {
+            "value": "[parameters('vmName')]"
+          },
+          "vmSize": {
+            "value": "[parameters('vmSize')]"
+          },
+          "adminUsername": {
+            "value": "[parameters('adminUsername')]"
+          },
+          "adminPublicKey": {
+            "value": "[parameters('adminPublicKey')]"
+          },
+          "allowedSshSource": {
+            "value": "[parameters('allowedSshSource')]"
+          },
+          "osDiskSizeGB": {
+            "value": "[parameters('osDiskSizeGB')]"
+          },
+          "dnsLabelPrefix": {
+            "value": "[parameters('dnsLabelPrefix')]"
+          },
+          "tags": {
+            "value": "[parameters('tags')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.44.1.10279",
+              "templateHash": "1894698603888254228"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Region Azure."
+              }
+            },
+            "vmName": {
+              "type": "string",
+              "metadata": {
+                "description": "Nom de la VM."
+              }
+            },
+            "vmSize": {
+              "type": "string",
+              "metadata": {
+                "description": "Taille de la VM."
+              }
+            },
+            "adminUsername": {
+              "type": "string",
+              "metadata": {
+                "description": "Utilisateur admin Linux."
+              }
+            },
+            "adminPublicKey": {
+              "type": "securestring",
+              "metadata": {
+                "description": "Cle publique SSH."
+              }
+            },
+            "allowedSshSource": {
+              "type": "string",
+              "defaultValue": "*",
+              "metadata": {
+                "description": "Plage source autorisee pour SSH (CIDR ou *)."
+              }
+            },
+            "osDiskSizeGB": {
+              "type": "int",
+              "defaultValue": 128,
+              "metadata": {
+                "description": "Taille du disque OS en Go."
+              }
+            },
+            "dnsLabelPrefix": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Prefixe DNS public optionnel."
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Tags."
+              }
+            }
+          },
+          "variables": {
+            "cloudInitTemplate": "#cloud-config\npackage_update: true\npackages:\n  - ca-certificates\n  - curl\n  - git\n  - unzip\n  - apt-transport-https\nwrite_files:\n  - path: /etc/profile.d/dotnet.sh\n    permissions: '0644'\n    content: |\n      export DOTNET_ROOT=/usr/share/dotnet\n      export PATH=$PATH:/usr/share/dotnet:$HOME/.dotnet/tools\nruncmd:\n  - set -eux\n  # --- Docker (depot officiel) ---\n  - curl -fsSL https://get.docker.com -o /tmp/get-docker.sh\n  - sh /tmp/get-docker.sh\n  - usermod -aG docker __ADMIN_USER__\n  - systemctl enable --now docker\n  # --- Node.js 22 + npm ---\n  - curl -fsSL https://deb.nodesource.com/setup_22.x | bash -\n  - DEBIAN_FRONTEND=noninteractive apt-get install -y nodejs\n  # --- Angular CLI (derniere version, >21) ---\n  - npm install -g @angular/cli@latest\n  # --- .NET 10 SDK ---\n  - curl -fsSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh\n  - bash /tmp/dotnet-install.sh --channel 10.0 --install-dir /usr/share/dotnet\n  - ln -sf /usr/share/dotnet/dotnet /usr/local/bin/dotnet\n  # --- Marqueur de fin ---\n  - 'echo \"devbox provisioning OK $(date -u)\" > /var/lib/devbox-ready'\n",
+            "cloudInit": "[replace(variables('cloudInitTemplate'), '__ADMIN_USER__', parameters('adminUsername'))]"
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Network/networkSecurityGroups",
+              "apiVersion": "2024-05-01",
+              "name": "[format('{0}-nsg', parameters('vmName'))]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "securityRules": [
+                  {
+                    "name": "Allow-SSH",
+                    "properties": {
+                      "priority": 1000,
+                      "direction": "Inbound",
+                      "access": "Allow",
+                      "protocol": "Tcp",
+                      "sourcePortRange": "*",
+                      "destinationPortRange": "22",
+                      "sourceAddressPrefix": "[parameters('allowedSshSource')]",
+                      "destinationAddressPrefix": "*"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "type": "Microsoft.Network/virtualNetworks",
+              "apiVersion": "2024-05-01",
+              "name": "[format('{0}-vnet', parameters('vmName'))]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "addressSpace": {
+                  "addressPrefixes": [
+                    "10.20.0.0/16"
+                  ]
+                },
+                "subnets": [
+                  {
+                    "name": "default",
+                    "properties": {
+                      "addressPrefix": "10.20.1.0/24",
+                      "networkSecurityGroup": {
+                        "id": "[resourceId('Microsoft.Network/networkSecurityGroups', format('{0}-nsg', parameters('vmName')))]"
+                      }
+                    }
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/networkSecurityGroups', format('{0}-nsg', parameters('vmName')))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Network/publicIPAddresses",
+              "apiVersion": "2024-05-01",
+              "name": "[format('{0}-pip', parameters('vmName'))]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "sku": {
+                "name": "Standard"
+              },
+              "properties": {
+                "publicIPAllocationMethod": "Static",
+                "dnsSettings": "[if(empty(parameters('dnsLabelPrefix')), null(), createObject('domainNameLabel', parameters('dnsLabelPrefix')))]"
+              }
+            },
+            {
+              "type": "Microsoft.Network/networkInterfaces",
+              "apiVersion": "2024-05-01",
+              "name": "[format('{0}-nic', parameters('vmName'))]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "ipConfigurations": [
+                  {
+                    "name": "ipconfig1",
+                    "properties": {
+                      "privateIPAllocationMethod": "Dynamic",
+                      "subnet": {
+                        "id": "[reference(resourceId('Microsoft.Network/virtualNetworks', format('{0}-vnet', parameters('vmName'))), '2024-05-01').subnets[0].id]"
+                      },
+                      "publicIPAddress": {
+                        "id": "[resourceId('Microsoft.Network/publicIPAddresses', format('{0}-pip', parameters('vmName')))]"
+                      }
+                    }
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/publicIPAddresses', format('{0}-pip', parameters('vmName')))]",
+                "[resourceId('Microsoft.Network/virtualNetworks', format('{0}-vnet', parameters('vmName')))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Compute/virtualMachines",
+              "apiVersion": "2024-07-01",
+              "name": "[parameters('vmName')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "hardwareProfile": {
+                  "vmSize": "[parameters('vmSize')]"
+                },
+                "osProfile": {
+                  "computerName": "[parameters('vmName')]",
+                  "adminUsername": "[parameters('adminUsername')]",
+                  "customData": "[base64(variables('cloudInit'))]",
+                  "linuxConfiguration": {
+                    "disablePasswordAuthentication": true,
+                    "ssh": {
+                      "publicKeys": [
+                        {
+                          "path": "[format('/home/{0}/.ssh/authorized_keys', parameters('adminUsername'))]",
+                          "keyData": "[parameters('adminPublicKey')]"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "storageProfile": {
+                  "imageReference": {
+                    "publisher": "Canonical",
+                    "offer": "ubuntu-24_04-lts",
+                    "sku": "server",
+                    "version": "latest"
+                  },
+                  "osDisk": {
+                    "createOption": "FromImage",
+                    "diskSizeGB": "[parameters('osDiskSizeGB')]",
+                    "managedDisk": {
+                      "storageAccountType": "Premium_LRS"
+                    }
+                  }
+                },
+                "networkProfile": {
+                  "networkInterfaces": [
+                    {
+                      "id": "[resourceId('Microsoft.Network/networkInterfaces', format('{0}-nic', parameters('vmName')))]"
+                    }
+                  ]
+                },
+                "diagnosticsProfile": {
+                  "bootDiagnostics": {
+                    "enabled": true
+                  }
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/networkInterfaces', format('{0}-nic', parameters('vmName')))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "publicIp": {
+              "type": "string",
+              "metadata": {
+                "description": "IP publique de la VM."
+              },
+              "value": "[reference(resourceId('Microsoft.Network/publicIPAddresses', format('{0}-pip', parameters('vmName'))), '2024-05-01').ipAddress]"
+            },
+            "fqdn": {
+              "type": "string",
+              "metadata": {
+                "description": "FQDN public (vide si pas de dnsLabelPrefix)."
+              },
+              "value": "[if(empty(parameters('dnsLabelPrefix')), '', reference(resourceId('Microsoft.Network/publicIPAddresses', format('{0}-pip', parameters('vmName'))), '2024-05-01').dnsSettings.fqdn)]"
+            },
+            "sshCommand": {
+              "type": "string",
+              "metadata": {
+                "description": "Commande SSH prete a copier."
+              },
+              "value": "[format('ssh {0}@{1}', parameters('adminUsername'), if(empty(parameters('dnsLabelPrefix')), reference(resourceId('Microsoft.Network/publicIPAddresses', format('{0}-pip', parameters('vmName'))), '2024-05-01').ipAddress, reference(resourceId('Microsoft.Network/publicIPAddresses', format('{0}-pip', parameters('vmName'))), '2024-05-01').dnsSettings.fqdn))]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', parameters('resourceGroupName'))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "publicIp": {
+      "type": "string",
+      "metadata": {
+        "description": "IP publique de la VM."
+      },
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'devbox-resources'), '2025-04-01').outputs.publicIp.value]"
+    },
+    "fqdn": {
+      "type": "string",
+      "metadata": {
+        "description": "FQDN public (si dnsLabelPrefix fourni)."
+      },
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'devbox-resources'), '2025-04-01').outputs.fqdn.value]"
+    },
+    "sshCommand": {
+      "type": "string",
+      "metadata": {
+        "description": "Commande SSH prete a copier."
+      },
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'devbox-resources'), '2025-04-01').outputs.sshCommand.value]"
+    },
+    "resourceGroupName": {
+      "type": "string",
+      "metadata": {
+        "description": "Nom du groupe de ressources cree."
+      },
+      "value": "[parameters('resourceGroupName')]"
+    }
+  }
+}
