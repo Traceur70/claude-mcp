@@ -13,6 +13,12 @@ public sealed record DriveItemInfo(
     string? Path,
     string? WebUrl);
 
+public sealed record UploadResult(
+    string Name,
+    string Id,
+    long Size,
+    string? WebUrl);
+
 /// <summary>
 /// Acces a OneDrive via l'API REST Microsoft Graph (v1.0), avec un jeton delegue
 /// fourni par <see cref="TokenStore"/>. On reste sur du REST pour eviter les soucis
@@ -130,6 +136,49 @@ public sealed class OneDriveClient
         return await resp.Content.ReadAsByteArrayAsync();
     }
 
+    /// <summary>Indique si un item (fichier ou dossier) existe au chemin donne.</summary>
+    public async Task<bool> ItemExistsAsync(string path)
+    {
+        using var client = await CreateGraphClientAsync();
+        using var resp = await client.GetAsync($"{GraphBase}/me/drive/root:/{EncodePath(path)}?$select=id");
+        if (resp.StatusCode == HttpStatusCode.NotFound)
+            return false;
+        await EnsureSuccessAsync(resp);
+        return true;
+    }
+
+    /// <summary>
+    /// Televerse un fichier au chemin donne (simple upload, jusqu'a 250 Mo).
+    /// conflictBehavior=replace si overwrite, sinon fail (erreur si le fichier existe deja).
+    /// Renvoie (nom, id, taille, webUrl) de l'item cree/mis a jour.
+    /// </summary>
+    public async Task<UploadResult> UploadFileAsync(string path, byte[] content, bool overwrite)
+    {
+        using var client = await CreateGraphClientAsync();
+
+        var conflict = overwrite ? "replace" : "fail";
+        var url = $"{GraphBase}/me/drive/root:/{EncodePath(path)}:/content?@microsoft.graph.conflictBehavior={conflict}";
+
+        using var body = new ByteArrayContent(content);
+        body.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+
+        using var resp = await client.PutAsync(url, body);
+
+        // 409 = le fichier existe et conflictBehavior=fail : on remonte un cas dedie.
+        if (resp.StatusCode == HttpStatusCode.Conflict)
+            throw new FileExistsException(path);
+
+        await EnsureSuccessAsync(resp);
+
+        using var doc = JsonDocument.Parse(await resp.Content.ReadAsStreamAsync());
+        var root = doc.RootElement;
+        return new UploadResult(
+            root.GetProperty("name").GetString() ?? "",
+            root.GetProperty("id").GetString() ?? "",
+            root.TryGetProperty("size", out var s) ? s.GetInt64() : content.LongLength,
+            root.TryGetProperty("webUrl", out var w) ? w.GetString() : null);
+    }
+
     /// <summary>Encode chaque segment d'un chemin OneDrive en conservant les '/' separateurs.</summary>
     private static string EncodePath(string path) =>
         string.Join('/', path.Trim('/').Split('/').Select(Uri.EscapeDataString));
@@ -195,4 +244,16 @@ public sealed class NotConnectedException : Exception
         : base("Non connecte a OneDrive. Ouvrez l'URL /login de l'application dans un navigateur pour vous authentifier une fois.")
     {
     }
+}
+
+/// <summary>Levee quand un upload sans overwrite cible un fichier existant.</summary>
+public sealed class FileExistsException : Exception
+{
+    public FileExistsException(string path)
+        : base($"Le fichier '{path}' existe deja.")
+    {
+        Path = path;
+    }
+
+    public string Path { get; }
 }

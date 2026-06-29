@@ -28,10 +28,14 @@ public sealed class AzureAdOptions
     /// </summary>
     public string? RedirectUri { get; set; }
 
-    /// <summary>Scopes Microsoft Graph demandes (delegues).</summary>
+    /// <summary>
+    /// Scopes Microsoft Graph demandes (delegues).
+    /// Files.ReadWrite couvre la lecture ET l'ecriture (upload). Si vous reduisez a
+    /// Files.Read, l'upload echouera et il faudra retirer l'outil upload_file.
+    /// </summary>
     public string[] Scopes { get; set; } =
     {
-        "https://graph.microsoft.com/Files.Read",
+        "https://graph.microsoft.com/Files.ReadWrite",
         "https://graph.microsoft.com/User.Read"
     };
 }

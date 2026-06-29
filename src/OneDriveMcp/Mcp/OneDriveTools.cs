@@ -87,6 +87,80 @@ public sealed class OneDriveTools
         catch (Exception ex) { return Error(ex.Message); }
     }
 
+    // Limite de taille du contenu accepte en entree (le base64 transite dans le message MCP).
+    private const int MaxUploadBytes = 25 * 1024 * 1024; // 25 Mo
+
+    [McpServerTool(Name = "upload_file", Destructive = true, Title = "Televerser un fichier sur OneDrive")]
+    [Description("Televerse un fichier sur OneDrive au chemin indique (ex: 'Documents/rapport.txt'). " +
+                 "Fournissez SOIT 'content' (texte UTF-8) SOIT 'contentBase64' (binaire encode en base64). " +
+                 "Par securite, si un fichier existe deja au meme chemin, l'outil REFUSE et renvoie " +
+                 "status='confirmation_required' : demandez confirmation a l'utilisateur, puis rappelez " +
+                 "l'outil avec overwrite=true pour l'ecraser.")]
+    public async Task<object> UploadFile(
+        [Description("Chemin de destination, relatif a la racine du OneDrive, incluant le nom du fichier (ex: 'Documents/notes.txt'). Le dossier parent doit exister.")] string path,
+        [Description("Contenu texte (UTF-8) du fichier. A utiliser pour les fichiers texte.")] string? content = null,
+        [Description("Contenu binaire encode en base64. A utiliser pour les fichiers non-texte (images, xlsx, pdf...).")] string? contentBase64 = null,
+        [Description("Ecraser le fichier s'il existe deja. Defaut: false. Ne passez true qu'apres confirmation explicite de l'utilisateur.")] bool overwrite = false)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(path))
+                return Error("Le chemin de destination est requis.");
+
+            byte[] bytes;
+            if (!string.IsNullOrEmpty(contentBase64))
+            {
+                try { bytes = Convert.FromBase64String(contentBase64); }
+                catch (FormatException) { return Error("contentBase64 n'est pas une chaine base64 valide."); }
+            }
+            else if (content is not null)
+            {
+                bytes = System.Text.Encoding.UTF8.GetBytes(content);
+            }
+            else
+            {
+                return Error("Fournissez 'content' (texte) ou 'contentBase64' (binaire).");
+            }
+
+            if (bytes.LongLength > MaxUploadBytes)
+                return Error($"Fichier trop volumineux ({bytes.LongLength} octets). Limite: {MaxUploadBytes} octets (25 Mo).");
+
+            // Garde-fou cote serveur : pas d'ecrasement sans confirmation explicite.
+            if (!overwrite && await _oneDrive.ItemExistsAsync(path))
+            {
+                return new
+                {
+                    status = "confirmation_required",
+                    path,
+                    message = $"Un fichier existe deja a '{path}'. Demandez confirmation a l'utilisateur, " +
+                              "puis rappelez upload_file avec overwrite=true pour l'ecraser."
+                };
+            }
+
+            var result = await _oneDrive.UploadFileAsync(path, bytes, overwrite);
+            return new
+            {
+                status = "uploaded",
+                result.Name,
+                result.Id,
+                result.Size,
+                result.WebUrl,
+                overwritten = overwrite
+            };
+        }
+        catch (FileExistsException)
+        {
+            return new
+            {
+                status = "confirmation_required",
+                path,
+                message = $"Un fichier existe deja a '{path}'. Rappelez upload_file avec overwrite=true pour l'ecraser."
+            };
+        }
+        catch (NotConnectedException ex) { return Error(ex.Message); }
+        catch (Exception ex) { return Error(ex.Message); }
+    }
+
     private static bool IsSpreadsheet(string name) =>
         name.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase) ||
         name.EndsWith(".xls", StringComparison.OrdinalIgnoreCase) ||

@@ -54,7 +54,12 @@ infra/                        # Infrastructure as Code (Bicep)
 4. Notez l'**Application (client) ID** → ce sera votre **Client ID**.
 5. **Certificates & secrets** → **New client secret** → copiez la **valeur** → ce sera votre **Client Secret**.
 6. **API permissions** → **Add a permission** → **Microsoft Graph** → **Delegated permissions** →
-   ajoutez **`Files.Read`** et **`User.Read`** (`offline_access` est ajouté automatiquement par MSAL).
+   ajoutez **`Files.ReadWrite`** (lecture + écriture, requise pour `upload_file`) et **`User.Read`**
+   (`offline_access` est ajouté automatiquement par MSAL).
+   *(Si vous ne voulez pas d'écriture, utilisez `Files.Read` à la place et retirez l'outil `upload_file`.)*
+
+> ℹ️ Si vous **ajoutez `Files.ReadWrite` après coup** (montée de version), vous devez **vous reconnecter
+> une fois** via `/login` pour consentir au nouveau scope (consentement incrémental).
 
 > **Tenant ID** : pour un OneDrive **perso**, laissez la valeur par défaut **`consumers`** (rien à copier).
 > Pour un OneDrive **Entreprise**, mettez votre Tenant ID (GUID).
@@ -144,6 +149,15 @@ Exemple de config Claude Code (`.mcp.json`) avec header :
 | `list_files`       | Liste les Excel/CSV (et dossiers) d'un dossier OneDrive.                |
 | `search_files`     | Recherche des Excel/CSV par nom dans tout le OneDrive.                  |
 | `read_spreadsheet` | Lit un fichier (par id ou chemin) et renvoie les lignes/colonnes.       |
+| `upload_file`      | Téléverse un fichier (texte ou base64). **Écrasement refusé sans `overwrite=true`** (confirmation). Marqué *destructif*. |
+
+### Écrasement & confirmation (`upload_file`)
+
+MCP n'a pas de dialogue de confirmation piloté par le serveur universellement supporté. Le pattern
+compatible utilisé ici : si le fichier existe et `overwrite=false`, le serveur renvoie
+`status=confirmation_required` au lieu d'écraser. **Claude** demande alors confirmation à l'utilisateur
+puis rappelle l'outil avec `overwrite=true`. L'outil est annoté `destructive`, ce qui pousse aussi
+les clients à demander l'approbation avant l'appel.
 
 ---
 
